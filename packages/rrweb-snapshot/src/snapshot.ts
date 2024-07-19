@@ -36,6 +36,30 @@ export function genId(): number {
   return _id++;
 }
 
+function makeBlockSelector(
+  blockClass: string | null,
+  blockSelector: string | RegExp | null,
+): string | RegExp | null {
+  if (!blockClass && !blockSelector) return null;
+
+  if (typeof blockClass === 'string' && blockClass.length > 0) {
+    if (!blockSelector) return `.${blockClass}`;
+    if (typeof blockSelector === 'string')
+      return `.${blockClass},${blockSelector}`;
+    return new RegExp(`(${blockClass}|${blockSelector.source})`);
+  }
+  if (typeof blockSelector === 'string' && blockSelector.length > 0) {
+    if (!blockClass) return blockSelector;
+    return new RegExp(`(${blockClass}|${blockSelector})`);
+  }
+  if (!!blockSelector && typeof blockSelector === 'object') {
+    if (!blockClass) return blockSelector;
+    return new RegExp(`(${blockClass}|${blockSelector.source})`);
+  }
+
+  return null;
+}
+
 function getValidTagName(element: HTMLElement): Lowercase<string> {
   if (element instanceof HTMLFormElement) {
     return 'form';
@@ -273,27 +297,21 @@ export function ignoreAttribute(
 
 export function _isBlockedElement(
   element: HTMLElement,
-  blockClass: string | RegExp,
-  blockSelector: string | null,
+  blockSelector: string | RegExp | null,
 ): boolean {
-  try {
-    if (typeof blockClass === 'string') {
-      if (element.classList.contains(blockClass)) {
+  if (!blockSelector) return false;
+
+  if (typeof blockSelector === 'string' && element.matches(blockSelector)) {
+  return true;
+  }
+
+  if (blockSelector instanceof RegExp) {
+    for (let eIndex = element.classList.length; eIndex--; ) {
+      const className = element.classList[eIndex];
+      if (blockSelector.test(className)) {
         return true;
       }
-    } else {
-      for (let eIndex = element.classList.length; eIndex--; ) {
-        const className = element.classList[eIndex];
-        if (blockClass.test(className)) {
-          return true;
-        }
-      }
     }
-    if (blockSelector) {
-      return element.matches(blockSelector);
-    }
-  } catch (e) {
-    //
   }
 
   return false;
@@ -437,8 +455,7 @@ function serializeNode(
   options: {
     doc: Document;
     mirror: Mirror;
-    blockClass: string | RegExp;
-    blockSelector: string | null;
+    blockSelector: string | RegExp | null;
     needsMask: boolean;
     inlineStylesheet: boolean;
     maskInputOptions: MaskInputOptions;
@@ -457,7 +474,6 @@ function serializeNode(
   const {
     doc,
     mirror,
-    blockClass,
     blockSelector,
     needsMask,
     inlineStylesheet,
@@ -497,7 +513,6 @@ function serializeNode(
     case n.ELEMENT_NODE:
       return serializeElementNode(n as HTMLElement, {
         doc,
-        blockClass,
         blockSelector,
         inlineStylesheet,
         maskInputOptions,
@@ -597,8 +612,7 @@ function serializeElementNode(
   n: HTMLElement,
   options: {
     doc: Document;
-    blockClass: string | RegExp;
-    blockSelector: string | null;
+    blockSelector: string | RegExp | null;
     inlineStylesheet: boolean;
     maskInputOptions: MaskInputOptions;
     maskInputFn: MaskInputFn | undefined;
@@ -615,7 +629,6 @@ function serializeElementNode(
 ): serializedNode | false {
   const {
     doc,
-    blockClass,
     blockSelector,
     inlineStylesheet,
     maskInputOptions = {},
@@ -627,7 +640,7 @@ function serializeElementNode(
     newlyAddedElement = false,
     rootId,
   } = options;
-  const needBlock = _isBlockedElement(n, blockClass, blockSelector);
+  const needBlock = _isBlockedElement(n, blockSelector);
   const tagName = getValidTagName(n);
   let attributes: attributes = {};
   const len = n.attributes.length;
@@ -948,8 +961,7 @@ export function serializeNodeWithId(
   options: {
     doc: Document;
     mirror: Mirror;
-    blockClass: string | RegExp;
-    blockSelector: string | null;
+    blockSelector: string | RegExp | null;
     maskTextClass: string | RegExp;
     maskTextSelector: string | null;
     skipChild: boolean;
@@ -981,7 +993,6 @@ export function serializeNodeWithId(
   const {
     doc,
     mirror,
-    blockClass,
     blockSelector,
     maskTextClass,
     maskTextSelector,
@@ -1019,7 +1030,6 @@ export function serializeNodeWithId(
   const _serializedNode = serializeNode(n, {
     doc,
     mirror,
-    blockClass,
     blockSelector,
     needsMask,
     inlineStylesheet,
@@ -1090,7 +1100,6 @@ export function serializeNodeWithId(
     const bypassOptions = {
       doc,
       mirror,
-      blockClass,
       blockSelector,
       needsMask,
       maskTextClass,
@@ -1160,7 +1169,6 @@ export function serializeNodeWithId(
           const serializedIframeNode = serializeNodeWithId(iframeDoc, {
             doc: iframeDoc,
             mirror,
-            blockClass,
             blockSelector,
             needsMask,
             maskTextClass,
@@ -1212,7 +1220,6 @@ export function serializeNodeWithId(
           const serializedLinkNode = serializeNodeWithId(n, {
             doc,
             mirror,
-            blockClass,
             blockSelector,
             needsMask,
             maskTextClass,
@@ -1254,8 +1261,8 @@ function snapshot(
   n: Document,
   options?: {
     mirror?: Mirror;
-    blockClass?: string | RegExp;
-    blockSelector?: string | null;
+    blockClass?: string | null;
+    blockSelector?: string | RegExp | null;
     maskTextClass?: string | RegExp;
     maskTextSelector?: string | null;
     inlineStylesheet?: boolean;
@@ -1303,6 +1310,7 @@ function snapshot(
     stylesheetLoadTimeout,
     keepIframeSrcFn = () => false,
   } = options || {};
+
   const maskInputOptions: MaskInputOptions =
     maskAllInputs === true
       ? {
@@ -1349,8 +1357,7 @@ function snapshot(
   return serializeNodeWithId(n, {
     doc: n,
     mirror,
-    blockClass,
-    blockSelector,
+    blockSelector: makeBlockSelector(blockClass, blockSelector),
     maskTextClass,
     maskTextSelector,
     skipChild: false,
