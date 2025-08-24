@@ -368,7 +368,7 @@ export default class MutationBuffer {
 
     for (const n of this.movedSet) {
       if (
-        isParentRemoved(this.removesSubTreeCache, n, this.mirror) &&
+        isParentRemoved(this.removesSubTreeCache, n) &&
         !this.movedSet.has(dom.parentNode(n)!)
       ) {
         continue;
@@ -379,7 +379,7 @@ export default class MutationBuffer {
     for (const n of this.addedSet) {
       if (
         !isAncestorInSet(this.droppedSet, n) &&
-        !isParentRemoved(this.removesSubTreeCache, n, this.mirror)
+        !isParentRemoved(this.removesSubTreeCache, n)
       ) {
         pushAdd(n);
       } else if (isAncestorInSet(this.movedSet, n)) {
@@ -834,16 +834,8 @@ function processRemoves(n: Node, cache: Set<Node>) {
   return;
 }
 
-function isParentRemoved(removes: Set<Node>, n: Node, mirror: Mirror): boolean {
+function isParentRemoved(removes: Set<Node>, n: Node): boolean {
   if (removes.size === 0) return false;
-  return _isParentRemoved(removes, n, mirror);
-}
-
-function _isParentRemoved(
-  removes: Set<Node>,
-  n: Node,
-  _mirror: Mirror,
-): boolean {
   const node: ParentNode | null = dom.parentNode(n);
   if (!node) return false;
   return removes.has(node);
