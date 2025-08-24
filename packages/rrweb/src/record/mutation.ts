@@ -810,8 +810,14 @@ export default class MutationBuffer {
  * that.
  */
 function deepDelete(addsSet: Set<Node>, n: Node) {
-  addsSet.delete(n);
-  dom.childNodes(n).forEach((childN) => deepDelete(addsSet, childN));
+  const stack: Node[] = [n];
+  while (stack.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const current = stack.pop()!;
+    if (!addsSet.has(current)) continue;
+    addsSet.delete(current);
+    dom.childNodes(current).forEach((childN) => stack.push(childN));
+  }
 }
 
 function processRemoves(n: Node, cache: Set<Node>) {
